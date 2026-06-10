@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockScan — Warehouse Inventory</title>
+<meta name="description" content="Warehouse inventory management app">
+<meta name="theme-color" content="#0e1118">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="StockScan">
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:#07090f; --surface:#0e1118; --surface2:#151b27; --surface3:#1c2438;
+  --border:#232d45; --border2:#2e3d5e;
+  --accent:#3d7fff; --accent-glow:rgba(61,127,255,0.18);
+  --green:#00d68f; --green-bg:rgba(0,214,143,0.10);
+  --red:#ff4d4d; --red-bg:rgba(255,77,77,0.10);
+  --yellow:#ffbe3d; --yellow-bg:rgba(255,190,61,0.10);
+  --orange:#ff8c3d; --orange-bg:rgba(255,140,61,0.10);
+  --text:#dce6f8; --text-muted:#6b7fa3; --text-dim:#3d4f72;
+  --mono:'JetBrains Mono',monospace; --sans:'Inter',sans-serif;
+  --radius:14px; --radius-sm:8px;
+}
+body { background:var(--bg); color:var(--text); font-family:var(--sans); min-height:100vh; display:flex; flex-direction:column; font-size:14px; }
+::-webkit-scrollbar { width:4px; }
+::-webkit-scrollbar-thumb { background:var(--border2); border-radius:2px; }
+
+/* ── Header ── */
+header { display:flex; align-items:center; justify-content:space-between; padding:0 24px; height:60px; background:var(--surface); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:100; }
+.logo { display:flex; align-items:center; gap:10px; }
+.logo-mark { width:36px; height:36px; background:linear-gradient(135deg,var(--accent),#6fa3ff); border-radius:10px; display:grid; place-items:center; font-size:18px; box-shadow:0 0 16px rgba(61,127,255,0.35); }
+.logo-name { font-size:18px; font-weight:700; letter-spacing:-0.3px; }
+.logo-name em { color:var(--accent); font-style:normal; }
+.header-pills { display:flex; gap:10px; }
+.pill { background:var(--surface2); border:1px solid var(--border); border-radius:20px; padding:5px 14px; display:flex; flex-direction:column; align-items:center; min-width:64px; }
+.pill-val { font-family:var(--mono); font-size:15px; font-weight:600; line-height:1.2; }
+.pill-lbl { font-size:10px; color:var(--text-muted); letter-spacing:.3px; }
+
+/* ── Nav ── */
+.nav { display:flex; background:var(--surface); border-bottom:1px solid var(--border); padding:0 20px; gap:2px; }
+.nav-btn { padding:13px 20px; font-size:13px; font-weight:600; font-family:var(--sans); color:var(--text-muted); background:none; border:none; border-bottom:2px solid transparent; cursor:pointer; transition:color .15s,border-color .15s; display:flex; align-items:center; gap:7px; }
+.nav-btn.active { color:var(--accent); border-bottom-color:var(--accent); }
+.nav-btn:hover:not(.active) { color:var(--text); }
+
+/* ── Pages ── */
+.page { display:none; flex:1; }
+.page.active { display:flex; }
+
+/* ══ SCAN PAGE ══ */
+#page-scan { flex-direction:row; }
+.scan-main { flex:1; min-width:0; padding:24px; display:flex; flex-direction:column; gap:20px; overflow-y:auto; max-height:calc(100vh - 110px); }
+
+.lookup-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:20px; }
+.card-title { font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:1px; color:var(--text-muted); margin-bottom:12px; }
+.lookup-row { display:flex; gap:10px; }
+.barcode-input { flex:1; background:var(--bg); border:1.5px solid var(--border); border-radius:var(--radius-sm); color:var(--text); font-family:var(--mono); font-size:16px; padding:11px 15px; outline:none; transition:border-color .15s,box-shadow .15s; }
+.barcode-input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow); }
+.barcode-input::placeholder { color:var(--text-dim); font-family:var(--sans); font-size:13px; }
+
+/* Result card */
+#result-card { background:var(--surface); border:1.5px solid var(--border); border-radius:var(--radius); padding:22px; display:none; transition:border-color .2s; }
+#result-card.found { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent-glow); }
+#result-card.not-found { border-color:var(--red); }
+.res-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:16px; gap:12px; }
+.res-name { font-size:22px; font-weight:700; line-height:1.2; }
+.res-badge { font-family:var(--mono); font-size:11px; color:var(--text-muted); background:var(--surface2); border:1px solid var(--border); padding:4px 10px; border-radius:20px; white-space:nowrap; }
+.stock-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:18px; }
+.stock-tile { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:13px 15px; display:flex; flex-direction:column; gap:4px; }
+.stock-tile.highlight-green { border-color:var(--green); background:var(--green-bg); }
+.stock-tile.highlight-yellow { border-color:var(--yellow); background:var(--yellow-bg); }
+.stock-tile.highlight-red { border-color:var(--red); background:var(--red-bg); }
+.tile-val { font-family:var(--mono); font-size:28px; font-weight:600; line-height:1; }
+.tile-val.green { color:var(--green); } .tile-val.yellow { color:var(--yellow); } .tile-val.red { color:var(--red); }
+.tile-lbl { font-size:11px; color:var(--text-muted); }
+
+/* Alert banner — shown inside result card when stock near threshold */
+#alert-banner { display:none; background:var(--orange-bg); border:1px solid var(--orange); border-radius:10px; padding:12px 15px; margin-bottom:14px; gap:10px; align-items:flex-start; }
+#alert-banner.show { display:flex; }
+#alert-banner.critical { background:var(--red-bg); border-color:var(--red); }
+.alert-icon { font-size:20px; flex-shrink:0; line-height:1; }
+.alert-body { flex:1; }
+.alert-title { font-size:13px; font-weight:700; color:var(--orange); margin-bottom:2px; }
+#alert-banner.critical .alert-title { color:var(--red); }
+.alert-msg { font-size:12px; color:var(--text-muted); line-height:1.5; }
+
+/* Action row: deduct + restock */
+.action-section { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:14px; display:flex; flex-direction:column; gap:12px; }
+.action-tabs { display:flex; gap:2px; background:var(--bg); border-radius:8px; padding:3px; }
+.atab { flex:1; padding:7px; text-align:center; font-size:12px; font-weight:600; border-radius:6px; cursor:pointer; color:var(--text-muted); border:none; background:none; font-family:var(--sans); transition:all .15s; }
+.atab.active { background:var(--surface2); color:var(--text); }
+.action-body { display:flex; gap:10px; align-items:flex-end; }
+.action-body .field { flex:1; }
+.action-body label { font-size:11px; color:var(--text-muted); display:block; margin-bottom:6px; }
+.qty-input { width:100%; background:var(--bg); border:1.5px solid var(--border); border-radius:8px; color:var(--text); font-family:var(--mono); font-size:22px; font-weight:600; padding:9px 13px; outline:none; transition:border-color .15s,box-shadow .15s; text-align:center; }
+.qty-input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow); }
+.restock-note { font-size:11px; color:var(--text-muted); background:var(--surface3); border-radius:6px; padding:6px 10px; }
+
+/* Alert threshold config */
+.threshold-config { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:16px 20px; }
+.threshold-config .card-title { margin-bottom:14px; }
+.threshold-row { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; }
+.threshold-field { display:flex; flex-direction:column; gap:5px; flex:1; min-width:120px; }
+.threshold-field label { font-size:11px; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:.5px; }
+.threshold-input { background:var(--bg); border:1.5px solid var(--border); border-radius:8px; color:var(--text); font-family:var(--mono); font-size:15px; font-weight:600; padding:8px 12px; outline:none; transition:border-color .15s; width:100%; }
+.threshold-input:focus { border-color:var(--accent); }
+.threshold-preview { font-size:11px; color:var(--text-muted); margin-top:4px; }
+.threshold-preview span { font-weight:600; }
+.threshold-preview .warn { color:var(--orange); }
+.threshold-preview .crit { color:var(--red); }
+
+/* ── Buttons ── */
+.btn { border:none; cursor:pointer; font-family:var(--sans); border-radius:var(--radius-sm); font-size:13px; font-weight:600; transition:all .15s; display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:10px 18px; white-space:nowrap; }
+.btn-primary { background:var(--accent); color:#fff; box-shadow:0 2px 12px rgba(61,127,255,0.3); }
+.btn-primary:hover { background:#5590ff; transform:translateY(-1px); }
+.btn-ghost { background:var(--surface2); color:var(--text); border:1px solid var(--border); }
+.btn-ghost:hover { background:var(--surface3); border-color:var(--border2); }
+.btn-green { background:var(--green); color:#042918; font-weight:700; box-shadow:0 2px 12px rgba(0,214,143,0.25); }
+.btn-green:hover { filter:brightness(1.1); transform:translateY(-1px); }
+.btn-orange { background:var(--orange-bg); color:var(--orange); border:1px solid rgba(255,140,61,0.35); font-weight:700; }
+.btn-orange:hover { background:rgba(255,140,61,0.2); }
+.btn-red { background:var(--red-bg); color:var(--red); border:1px solid rgba(255,77,77,0.35); }
+.btn-red:hover { background:rgba(255,77,77,0.2); }
+.btn-sm { padding:6px 12px; font-size:12px; }
+.btn-icon { padding:7px 10px; }
+
+/* ── Sidebar ── */
+.scan-sidebar { width:340px; flex-shrink:0; border-right:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; max-height:calc(100vh - 110px); }
+.sidebar-tabs { display:flex; background:var(--surface); border-bottom:1px solid var(--border); padding:10px 12px 0; gap:4px; }
+.stab { flex:1; padding:8px 6px; font-size:12px; font-weight:600; font-family:var(--sans); color:var(--text-muted); background:none; border:none; border-bottom:2px solid transparent; cursor:pointer; text-align:center; transition:all .15s; }
+.stab.active { color:var(--accent); border-bottom-color:var(--accent); }
+.sidebar-body { flex:1; overflow-y:auto; padding:14px; }
+.stab-pane { display:none; flex-direction:column; gap:6px; }
+.stab-pane.active { display:flex; }
+.pitem { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:11px 13px; display:flex; justify-content:space-between; align-items:center; cursor:pointer; transition:border-color .15s,background .15s; }
+.pitem:hover { border-color:var(--accent); background:var(--surface2); }
+.pitem.warn-item { border-left:3px solid var(--orange); }
+.pitem.crit-item { border-left:3px solid var(--red); }
+.pitem-name { font-size:13px; font-weight:600; }
+.pitem-sub { font-size:11px; color:var(--text-muted); margin-top:2px; font-family:var(--mono); }
+.pitem-qty { font-family:var(--mono); font-size:15px; font-weight:700; }
+.pitem-qty.ok { color:var(--green); } .pitem-qty.mid { color:var(--yellow); } .pitem-qty.low { color:var(--red); }
+.pitem-of { font-size:10px; color:var(--text-muted); font-family:var(--mono); }
+
+/* Low-stock summary badge in sidebar */
+.low-summary { background:var(--red-bg); border:1px solid var(--red); border-radius:8px; padding:8px 12px; font-size:12px; color:var(--red); font-weight:600; display:flex; align-items:center; gap:8px; }
+
+.hitem { background:var(--surface); border-radius:10px; border:1px solid var(--border); border-left:3px solid var(--accent); padding:10px 13px; display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+.hitem-name { font-size:13px; font-weight:600; }
+.hitem-code { font-family:var(--mono); font-size:11px; color:var(--text-muted); }
+.hitem-time { font-size:11px; color:var(--text-muted); margin-top:2px; }
+.hitem-qty { font-family:var(--mono); font-weight:700; font-size:15px; color:var(--red); white-space:nowrap; }
+.hitem-qty.restock { color:var(--green); }
+.hitem-after { font-family:var(--mono); font-size:10px; color:var(--text-muted); }
+
+/* ══ PRODUCTS PAGE ══ */
+#page-products { flex-direction:column; padding:24px; gap:18px; overflow-y:auto; }
+.pg-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+.pg-title { font-size:20px; font-weight:700; }
+.pg-controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.search-wrap { position:relative; }
+.search-icon { position:absolute; right:11px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:14px; pointer-events:none; }
+.search-input { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--text); font-family:var(--sans); font-size:13px; padding:8px 34px 8px 13px; outline:none; width:200px; transition:border-color .15s,box-shadow .15s; }
+.search-input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow); }
+.search-input::placeholder { color:var(--text-muted); }
+.cat-filter { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--text); font-family:var(--sans); font-size:13px; padding:8px 12px; outline:none; cursor:pointer; transition:border-color .15s; }
+.cat-filter:focus { border-color:var(--accent); }
+
+.ptable { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+.ptable-head { display:grid; grid-template-columns:2.2fr 1.1fr 90px 90px 110px; padding:10px 18px; background:var(--surface2); border-bottom:1px solid var(--border); }
+.th { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--text-muted); }
+.prow { display:grid; grid-template-columns:2.2fr 1.1fr 90px 90px 110px; padding:14px 18px; border-bottom:1px solid var(--border); align-items:center; transition:background .1s; }
+.prow:last-child { border-bottom:none; }
+.prow:hover { background:var(--surface2); }
+.prow.warn-row { border-left:3px solid var(--orange); }
+.prow.crit-row { border-left:3px solid var(--red); }
+.prow-name { font-size:13px; font-weight:600; }
+.prow-code { font-family:var(--mono); font-size:11px; color:var(--text-muted); }
+.prow-cat { font-size:12px; color:var(--text-muted); }
+.prow-num { font-family:var(--mono); font-size:15px; font-weight:600; }
+.prow-actions { display:flex; gap:6px; }
+.mini-bar-wrap { display:flex; flex-direction:column; gap:3px; }
+.mini-bar { height:3px; border-radius:2px; background:var(--border); overflow:hidden; }
+.mini-bar-fill { height:100%; border-radius:2px; transition:width .3s; }
+
+/* ── Modals ── */
+.overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.7); backdrop-filter:blur(4px); z-index:200; align-items:center; justify-content:center; }
+.overlay.open { display:flex; }
+.modal { background:var(--surface); border:1px solid var(--border2); border-radius:var(--radius); padding:24px; width:420px; max-width:95vw; animation:fadeUp .2s ease; }
+.modal-sm { background:var(--surface); border:1px solid var(--red); border-radius:var(--radius); padding:24px; width:360px; max-width:95vw; animation:fadeUp .2s ease; }
+@keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+.modal-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+.modal-head h3 { font-size:16px; font-weight:700; }
+.modal-x { background:none; border:none; color:var(--text-muted); font-size:22px; cursor:pointer; line-height:1; width:28px; height:28px; display:grid; place-items:center; border-radius:6px; transition:background .15s; }
+.modal-x:hover { background:var(--surface2); }
+.form-grid { display:flex; flex-direction:column; gap:14px; }
+.form-field label { display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); margin-bottom:6px; }
+.form-input { width:100%; background:var(--bg); border:1.5px solid var(--border); border-radius:var(--radius-sm); color:var(--text); font-family:var(--sans); font-size:14px; padding:10px 13px; outline:none; transition:border-color .15s,box-shadow .15s; }
+.form-input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow); }
+.form-input:disabled { opacity:.45; cursor:not-allowed; }
+.modal-foot { display:flex; gap:8px; justify-content:flex-end; margin-top:8px; }
+
+/* Toast */
+#toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(80px); background:var(--surface2); border:1px solid var(--border2); border-radius:24px; padding:10px 20px; font-size:13px; font-weight:500; transition:transform .3s cubic-bezier(.34,1.56,.64,1); z-index:400; white-space:nowrap; pointer-events:none; display:flex; align-items:center; gap:8px; box-shadow:0 8px 32px rgba(0,0,0,.4); }
+#toast.show { transform:translateX(-50%) translateY(0); }
+#toast.success { border-color:var(--green); color:var(--green); }
+#toast.error { border-color:var(--red); color:var(--red); }
+#toast.warn { border-color:var(--orange); color:var(--orange); }
+
+.empty { text-align:center; padding:40px 20px; color:var(--text-muted); font-size:13px; line-height:2; }
+.empty strong { color:var(--text); }
+.slabel { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:var(--text-dim); padding:0 2px 8px; }
+
+@media(max-width:720px){
+  #page-scan{flex-direction:column-reverse}
+  .scan-sidebar{width:100%;max-height:40vh;border-right:none;border-top:1px solid var(--border)}
+  .scan-main{max-height:none}
+  .header-pills{display:none}
+  .ptable-head,.prow{grid-template-columns:1fr 70px 100px}
+  .th:nth-child(2),.th:nth-child(4),.prow>.prow-cat,.prow>div:nth-child(4){display:none}
+  #page-products{padding:14px}
+  .search-input{width:160px}
+  .stock-grid{grid-template-columns:1fr 1fr}
+  .stock-grid .stock-tile:last-child{display:none}
+  .threshold-row{flex-direction:column}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">📦</div>
+    <div class="logo-name">Stock<em>Scan</em></div>
+  </div>
+  <div class="header-pills">
+    <div class="pill"><div class="pill-val" id="hstat-products">0</div><div class="pill-lbl">Products</div></div>
+    <div class="pill"><div class="pill-val" id="hstat-scans">0</div><div class="pill-lbl">Scans Today</div></div>
+    <div class="pill"><div class="pill-val" id="hstat-out">0</div><div class="pill-lbl">Items Out</div></div>
+    <div class="pill"><div class="pill-val" id="hstat-alerts" style="color:var(--orange)">0</div><div class="pill-lbl">Low Stock</div></div>
+  </div>
+</header>
+
+<nav class="nav">
+  <button class="nav-btn active" data-page="scan">🔍 Scan</button>
+  <button class="nav-btn" data-page="products">📋 Products</button>
+  <button class="nav-btn" data-page="alerts">🔔 Alerts</button>
+</nav>
+
+<!-- ══ SCAN PAGE ══ -->
+<div class="page active" id="page-scan">
+
+  <div class="scan-sidebar">
+    <div class="sidebar-tabs">
+      <button class="stab active" data-stab="products">All Products</button>
+      <button class="stab" data-stab="history">History</button>
+    </div>
+    <div class="sidebar-body">
+      <div class="stab-pane active" id="stab-products">
+        <div id="low-summary-bar"></div>
+        <div class="slabel">Inventory</div>
+        <div id="scan-list"></div>
+      </div>
+      <div class="stab-pane" id="stab-history">
+        <div class="slabel">Recent Activity</div>
+        <div id="history-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="scan-main">
+
+    <div class="lookup-card">
+      <div class="card-title">Enter Barcode</div>
+      <div class="lookup-row">
+        <input class="barcode-input" id="manual-input" placeholder="Type barcode here…" inputmode="numeric" autocomplete="off" />
+        <button class="btn btn-primary" id="btn-lookup">Search</button>
+      </div>
+    </div>
+
+    <div id="result-card">
+      <div class="res-header">
+        <div class="res-name" id="res-name">—</div>
+        <div class="res-badge" id="res-code">—</div>
+      </div>
+
+      <!-- ⚠️ Alert Banner -->
+      <div id="alert-banner">
+        <div class="alert-icon" id="alert-icon">⚠️</div>
+        <div class="alert-body">
+          <div class="alert-title" id="alert-title">Low Stock Warning</div>
+          <div class="alert-msg" id="alert-msg"></div>
+        </div>
+      </div>
+
+      <div class="stock-grid">
+        <div class="stock-tile" id="tile-current">
+          <div class="tile-val green" id="res-current">—</div>
+          <div class="tile-lbl">Current Stock</div>
+        </div>
+        <div class="stock-tile">
+          <div class="tile-val" id="res-original" style="color:var(--text-muted)">—</div>
+          <div class="tile-lbl">Original Stock</div>
+        </div>
+        <div class="stock-tile">
+          <div class="tile-val" id="res-pct" style="color:var(--text-muted)">—</div>
+          <div class="tile-lbl">Remaining</div>
+        </div>
+      </div>
+
+      <!-- Deduct / Restock tabs -->
+      <div class="action-section">
+        <div class="action-tabs">
+          <button class="atab active" id="atab-deduct" onclick="switchAction('deduct')">↓ Deduct</button>
+          <button class="atab" id="atab-restock" onclick="switchAction('restock')">↑ Restock</button>
+        </div>
+        <div class="action-body">
+          <div class="field">
+            <label id="action-label">Quantity to Deduct</label>
+            <input class="qty-input" id="qty-input" type="number" min="1" value="1" inputmode="numeric" />
+          </div>
+          <button class="btn btn-green" id="btn-action">Deduct ↓</button>
+        </div>
+        <div class="restock-note" id="restock-note" style="display:none">
+          ℹ️ Restock adds to current stock. Original quantity won't change unless new total exceeds it.
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Alert threshold config (in scan page) -->
+    <div class="threshold-config" id="threshold-box" style="display:none">
+      <div class="card-title">⚙️ Alert Thresholds for: <span id="thresh-product-name" style="color:var(--text)">—</span></div>
+      <div class="threshold-row">
+        <div class="threshold-field">
+          <label>Warning at (qty)</label>
+          <input class="threshold-input" id="thresh-qty-warn" type="number" min="0" placeholder="e.g. 50" />
+        </div>
+        <div class="threshold-field">
+          <label>Critical at (qty)</label>
+          <input class="threshold-input" id="thresh-qty-crit" type="number" min="0" placeholder="e.g. 20" />
+        </div>
+        <div class="threshold-field">
+          <label>Warning at (%)</label>
+          <input class="threshold-input" id="thresh-pct-warn" type="number" min="0" max="100" placeholder="e.g. 30" />
+        </div>
+        <div class="threshold-field">
+          <label>Critical at (%)</label>
+          <input class="threshold-input" id="thresh-pct-crit" type="number" min="0" max="100" placeholder="e.g. 10" />
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="saveThresholds()" style="align-self:flex-end;flex-shrink:0">Save</button>
+      </div>
+      <div class="threshold-preview" id="thresh-preview"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══ PRODUCTS PAGE ══ -->
+<div class="page" id="page-products">
+  <div class="pg-header">
+    <h2 class="pg-title">Manage Products</h2>
+    <div class="pg-controls">
+      <div class="search-wrap">
+        <input class="search-input" id="search-input" placeholder="Search…" />
+        <span class="search-icon">🔍</span>
+      </div>
+      <select class="cat-filter" id="cat-filter">
+        <option value="">All Categories</option>
+      </select>
+      <button class="btn btn-ghost" id="btn-export" title="Export all data">⬇ Export</button>
+      <label class="btn btn-ghost" title="Import data from file" style="cursor:pointer">
+        ⬆ Import <input type="file" id="import-input" accept=".json" style="display:none" />
+      </label>
+      <button class="btn btn-primary" id="btn-new">+ Add Product</button>
+    </div>
+  </div>
+  <div class="ptable">
+    <div class="ptable-head">
+      <div class="th">Product</div>
+      <div class="th">Category</div>
+      <div class="th">Current</div>
+      <div class="th">Original</div>
+      <div class="th">Actions</div>
+    </div>
+    <div id="ptable-body"></div>
+  </div>
+</div>
+
+<!-- ══ ALERTS PAGE ══ -->
+<div class="page" id="page-alerts">
+  <div style="padding:24px;display:flex;flex-direction:column;gap:18px;flex:1;overflow-y:auto">
+    <div class="pg-header">
+      <h2 class="pg-title">🔔 Stock Alerts</h2>
+    </div>
+    <div id="alerts-body"></div>
+  </div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="overlay" id="modal-product">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="modal-title-text">Add Product</h3>
+      <button class="modal-x" id="modal-close">×</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-field"><label>Barcode *</label><input class="form-input" id="m-barcode" placeholder="e.g. 6281234567890" inputmode="numeric" /></div>
+      <div class="form-field"><label>Product Name *</label><input class="form-input" id="m-name" placeholder="e.g. Safety Helmet" /></div>
+      <div class="form-field"><label>Total Quantity *</label><input class="form-input" id="m-qty" type="number" min="1" placeholder="e.g. 500" inputmode="numeric" /></div>
+      <div class="form-field"><label>Category (optional)</label><input class="form-input" id="m-cat" placeholder="e.g. Tools, Safety…" /></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="modal-cancel">Cancel</button>
+      <button class="btn btn-primary" id="modal-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Modal -->
+<div class="overlay" id="modal-delete">
+  <div class="modal-sm">
+    <div class="modal-head"><h3 style="color:var(--red)">Delete Product</h3></div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:18px;line-height:1.8">
+      Are you sure you want to delete <strong id="delete-name" style="color:var(--text)"></strong>?<br>This cannot be undone.
+    </p>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="delete-cancel">Cancel</button>
+      <button class="btn btn-red" id="delete-confirm">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const LS = {
+  get: k => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+  set: (k,v) => localStorage.setItem(k, JSON.stringify(v))
+};
+
+// ─── State ─────────────────────────────────────────────────────
+let products     = LS.get('ss_products')    || {};
+let history      = LS.get('ss_history')     || [];
+let thresholds   = LS.get('ss_thresholds')  || {}; // per-product thresholds
+let totalOut     = history.reduce((s,h) => s + (h.type!=='restock'?h.qty:0), 0);
+let currentCode  = null;
+let editingCode  = null;
+let deletingCode = null;
+let actionMode   = 'deduct'; // 'deduct' | 'restock'
+
+// ─── Helpers ────────────────────────────────────────────────────
+const pct = (q,o) => o > 0 ? q/o : 0;
+const stockCls = (q,o) => pct(q,o) <= .1 ? 'red' : pct(q,o) <= .3 ? 'yellow' : 'green';
+const listCls  = (q,o) => q <= 0 ? 'low' : pct(q,o) <= .3 ? 'mid' : 'ok';
+const tileHL   = (q,o) => pct(q,o) <= .1 ? 'highlight-red' : pct(q,o) <= .3 ? 'highlight-yellow' : 'highlight-green';
+
+// Get alert level for a product: 'critical' | 'warning' | null
+function alertLevel(code, qty, original) {
+  const t = thresholds[code] || {};
+  const qtyWarn = t.qtyWarn || null;
+  const qtyCrit = t.qtyCrit || null;
+  const pctWarn = t.pctWarn != null ? t.pctWarn/100 : 0.30; // default 30%
+  const pctCrit = t.pctCrit != null ? t.pctCrit/100 : 0.10; // default 10%
+
+  const isCrit = (qtyCrit != null && qty <= qtyCrit) || pct(qty,original) <= pctCrit;
+  const isWarn = (qtyWarn != null && qty <= qtyWarn) || pct(qty,original) <= pctWarn;
+  if (qty <= 0) return 'critical';
+  if (isCrit)   return 'critical';
+  if (isWarn)   return 'warning';
+  return null;
+}
+
+function alertMsg(code, qty, original) {
+  const level = alertLevel(code, qty, original);
+  if (!level) return null;
+  const t = thresholds[code] || {};
+  const remaining = Math.round(pct(qty,original)*100);
+  if (qty <= 0) return { level:'critical', title:'Out of Stock!', msg:'This product has run out completely.' };
+  if (level === 'critical') {
+    const lines = [`Only ${qty} units left (${remaining}% of original).`];
+    if (t.qtyCrit) lines.push(`Critical threshold: ${t.qtyCrit} units.`);
+    return { level:'critical', title:'Critical Stock Level', msg:lines.join(' ') };
+  }
+  const lines = [`${qty} units left (${remaining}% of original).`];
+  if (t.qtyWarn) lines.push(`Warning threshold: ${t.qtyWarn} units.`);
+  return { level:'warning', title:'Low Stock Warning', msg:lines.join(' ') };
+}
+
+let toastT;
+function toast(msg, type='') {
+  clearTimeout(toastT);
+  $('toast').innerHTML = msg;
+  $('toast').className = 'show ' + type;
+  toastT = setTimeout(() => $('toast').className = '', 3800);
+}
+
+function scansToday() {
+  const t = new Date().toDateString(), s = LS.get('ss_scans') || {};
+  return s.date === t ? s.count : 0;
+}
+function bumpScans() {
+  const t = new Date().toDateString(), s = LS.get('ss_scans') || {};
+  LS.set('ss_scans', { date:t, count:(s.date===t?s.count:0)+1 });
+}
+function fmtTime(ts) {
+  return new Date(ts).toLocaleString('en-US', { hour:'2-digit', minute:'2-digit', day:'numeric', month:'short' });
+}
+
+// ─── Stats ──────────────────────────────────────────────────────
+function renderStats() {
+  const ps = Object.entries(products);
+  $('hstat-products').textContent = ps.length;
+  $('hstat-scans').textContent    = scansToday();
+  $('hstat-out').textContent      = totalOut;
+  const lowCount = ps.filter(([c,p]) => alertLevel(c,p.qty,p.original)).length;
+  $('hstat-alerts').textContent   = lowCount;
+  $('hstat-alerts').style.color   = lowCount > 0 ? 'var(--orange)' : 'var(--text-muted)';
+}
+
+// ─── Alert banner in result card ────────────────────────────────
+function updateAlertBanner(code, qty, original) {
+  const info = alertMsg(code, qty, original);
+  const banner = $('alert-banner');
+  if (!info) { banner.className = ''; banner.style.display='none'; return; }
+  banner.style.display = 'flex';
+  banner.className = info.level === 'critical' ? 'critical show' : 'show';
+  $('alert-icon').textContent = info.level === 'critical' ? '🚨' : '⚠️';
+  $('alert-title').textContent = info.title;
+  $('alert-msg').textContent   = info.msg;
+}
+
+// ─── Threshold config panel ──────────────────────────────────────
+function showThresholds(code) {
+  const p = products[code];
+  const t = thresholds[code] || {};
+  $('thresh-product-name').textContent = p.name;
+  $('thresh-qty-warn').value  = t.qtyWarn != null ? t.qtyWarn : '';
+  $('thresh-qty-crit').value  = t.qtyCrit != null ? t.qtyCrit : '';
+  $('thresh-pct-warn').value  = t.pctWarn != null ? t.pctWarn : 30;
+  $('thresh-pct-crit').value  = t.pctCrit != null ? t.pctCrit : 10;
+  $('threshold-box').style.display = 'block';
+  updateThresholdPreview(code);
+}
+
+function updateThresholdPreview(code) {
+  const p = products[code];
+  if (!p) return;
+  const qw = parseInt($('thresh-qty-warn').value)||null;
+  const qc = parseInt($('thresh-qty-crit').value)||null;
+  const pw = parseFloat($('thresh-pct-warn').value)||30;
+  const pc = parseFloat($('thresh-pct-crit').value)||10;
+  const lines = [];
+  if (qw) lines.push(`<span class="warn">⚠️ Warning</span> when qty ≤ <b>${qw}</b>`);
+  lines.push(`<span class="warn">⚠️ Warning</span> when stock ≤ <b>${pw}%</b> (≤ ${Math.floor(p.original*pw/100)} units)`);
+  if (qc) lines.push(`<span class="crit">🚨 Critical</span> when qty ≤ <b>${qc}</b>`);
+  lines.push(`<span class="crit">🚨 Critical</span> when stock ≤ <b>${pc}%</b> (≤ ${Math.floor(p.original*pc/100)} units)`);
+  $('thresh-preview').innerHTML = lines.join(' &nbsp;·&nbsp; ');
+}
+
+['thresh-qty-warn','thresh-qty-crit','thresh-pct-warn','thresh-pct-crit'].forEach(id => {
+  $(id).addEventListener('input', () => { if (currentCode) updateThresholdPreview(currentCode); });
+});
+
+function saveThresholds() {
+  if (!currentCode) return;
+  thresholds[currentCode] = {
+    qtyWarn: parseInt($('thresh-qty-warn').value)||null,
+    qtyCrit: parseInt($('thresh-qty-crit').value)||null,
+    pctWarn: parseFloat($('thresh-pct-warn').value)||30,
+    pctCrit: parseFloat($('thresh-pct-crit').value)||10
+  };
+  LS.set('ss_thresholds', thresholds);
+  const p = products[currentCode];
+  updateAlertBanner(currentCode, p.qty, p.original);
+  renderScanList(); renderStats(); renderAlertsPage();
+  toast('✅ Thresholds saved', 'success');
+}
+
+// ─── Action mode (deduct / restock) ─────────────────────────────
+function switchAction(mode) {
+  actionMode = mode;
+  $('atab-deduct').classList.toggle('active', mode==='deduct');
+  $('atab-restock').classList.toggle('active', mode==='restock');
+  $('action-label').textContent = mode==='deduct' ? 'Quantity to Deduct' : 'Quantity to Restock';
+  $('btn-action').textContent   = mode==='deduct' ? 'Deduct ↓' : 'Restock ↑';
+  $('btn-action').className     = mode==='deduct' ? 'btn btn-green' : 'btn btn-orange';
+  $('restock-note').style.display = mode==='restock' ? 'block' : 'none';
+}
+
+// ─── Scan list ───────────────────────────────────────────────────
+function renderScanList() {
+  const ps = Object.entries(products);
+  let html = '';
+  const lowItems = ps.filter(([c,p]) => alertLevel(c,p.qty,p.original));
+  if (lowItems.length) {
+    $('low-summary-bar').innerHTML = `<div class="low-summary">🔔 ${lowItems.length} product${lowItems.length>1?'s':''} need attention</div>`;
+  } else {
+    $('low-summary-bar').innerHTML = '';
+  }
+  if (!ps.length) {
+    $('scan-list').innerHTML = '<div class="empty">No products yet.<br>Go to <strong>Products</strong> to add some.</div>';
+    return;
+  }
+  // Sort: alerts first
+  const sorted = [...ps].sort(([ca,pa],[cb,pb]) => {
+    const la = alertLevel(ca,pa.qty,pa.original) ? 0 : 1;
+    const lb = alertLevel(cb,pb.qty,pb.original) ? 0 : 1;
+    return la - lb;
+  });
+  html = sorted.map(([code,p]) => {
+    const lvl = alertLevel(code,p.qty,p.original);
+    const rowCls = lvl==='critical'?'crit-item':lvl==='warning'?'warn-item':'';
+    return `<div class="pitem ${rowCls}" onclick="lookup('${code.replace(/'/g,"\\'")}')">
+      <div>
+        <div class="pitem-name">${p.name}</div>
+        <div class="pitem-sub">${p.category?p.category+' · ':''}${code}</div>
+      </div>
+      <div style="text-align:right">
+        <div class="pitem-qty ${listCls(p.qty,p.original)}">${p.qty}</div>
+        <div class="pitem-of">/ ${p.original}</div>
+      </div>
+    </div>`;
+  }).join('');
+  $('scan-list').innerHTML = html;
+}
+
+// ─── History ─────────────────────────────────────────────────────
+function renderHistory() {
+  if (!history.length) {
+    $('history-list').innerHTML = '<div class="empty">No activity yet.</div>';
+    return;
+  }
+  $('history-list').innerHTML = [...history].reverse().slice(0,60).map(h => {
+    const isRestock = h.type==='restock';
+    return `<div class="hitem">
+      <div>
+        <div class="hitem-name">${h.name}</div>
+        <div class="hitem-code">${h.code}</div>
+        <div class="hitem-time">${fmtTime(h.time)}</div>
+      </div>
+      <div style="text-align:right">
+        <div class="hitem-qty${isRestock?' restock':''}">${isRestock?'+':'-'}${h.qty}</div>
+        <div class="hitem-after">${h.after} left</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ─── Products table ──────────────────────────────────────────────
+function renderTable(filter='', cat='') {
+  const q = filter.toLowerCase();
+  const ps = Object.entries(products).filter(([code,p]) => {
+    const matchQ = !q || p.name.toLowerCase().includes(q) || code.includes(q) || (p.category||'').toLowerCase().includes(q);
+    const matchC = !cat || (p.category||'') === cat;
+    return matchQ && matchC;
+  });
+  // Refresh category filter
+  const cats = [...new Set(Object.values(products).map(p=>p.category||'').filter(Boolean))].sort();
+  const curCat = $('cat-filter').value;
+  $('cat-filter').innerHTML = '<option value="">All Categories</option>' + cats.map(c=>`<option value="${c}"${c===curCat?' selected':''}>${c}</option>`).join('');
+
+  if (!ps.length) {
+    $('ptable-body').innerHTML = `<div class="empty">${filter||cat?'No matching products.':'No products yet. Click <strong>+ Add Product</strong> to get started.'}</div>`;
+    return;
+  }
+  $('ptable-body').innerHTML = ps.map(([code,p]) => {
+    const cl = stockCls(p.qty,p.original);
+    const barColor = cl==='green'?'var(--green)':cl==='yellow'?'var(--yellow)':'var(--red)';
+    const barW = Math.max(2, Math.round(pct(p.qty,p.original)*100));
+    const lvl = alertLevel(code,p.qty,p.original);
+    const rowCls = lvl==='critical'?'prow crit-row':lvl==='warning'?'prow warn-row':'prow';
+    return `<div class="${rowCls}">
+      <div><div class="prow-name">${p.name}</div><div class="prow-code">${code}</div></div>
+      <div class="prow-cat">${p.category||'—'}</div>
+      <div class="mini-bar-wrap">
+        <div class="prow-num" style="color:${barColor}">${p.qty}</div>
+        <div class="mini-bar"><div class="mini-bar-fill" style="width:${barW}%;background:${barColor}"></div></div>
+      </div>
+      <div class="prow-num" style="color:var(--text-muted)">${p.original}</div>
+      <div class="prow-actions">
+        <button class="btn btn-ghost btn-sm btn-icon" onclick="openEdit('${code.replace(/'/g,"\\'")}')">✏️</button>
+        <button class="btn btn-red btn-sm btn-icon" onclick="openDelete('${code.replace(/'/g,"\\'")}')">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ─── Alerts page ─────────────────────────────────────────────────
+function renderAlertsPage() {
+  const alerts = Object.entries(products)
+    .map(([code,p]) => ({ code, p, info:alertMsg(code,p.qty,p.original) }))
+    .filter(x => x.info)
+    .sort((a,b) => (a.info.level==='critical'?0:1) - (b.info.level==='critical'?0:1));
+
+  if (!alerts.length) {
+    $('alerts-body').innerHTML = '<div class="empty" style="padding:60px 20px">✅ <strong>All products are well-stocked.</strong><br>No alerts at this time.</div>';
+    return;
+  }
+  $('alerts-body').innerHTML = alerts.map(({code,p,info}) => {
+    const isCrit = info.level==='critical';
+    const color  = isCrit ? 'var(--red)' : 'var(--orange)';
+    const bg     = isCrit ? 'var(--red-bg)' : 'var(--orange-bg)';
+    return `<div style="background:${bg};border:1px solid ${color};border-radius:12px;padding:16px 20px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:15px;font-weight:700;color:${color};margin-bottom:4px">${isCrit?'🚨':'⚠️'} ${p.name}</div>
+        <div style="font-size:12px;color:var(--text-muted);font-family:var(--mono)">${code}${p.category?' · '+p.category:''}</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:6px">${info.msg}</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-shrink:0">
+        <div style="text-align:center">
+          <div style="font-family:var(--mono);font-size:28px;font-weight:700;color:${color};line-height:1">${p.qty}</div>
+          <div style="font-size:10px;color:var(--text-muted)">of ${p.original}</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="lookup('${code.replace(/'/g,"\\'")}');navTo('scan')">Go to product</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ─── Lookup ──────────────────────────────────────────────────────
+function lookup(code) {
+  code = String(code).trim(); if (!code) return;
+  currentCode = null;
+  const p = products[code];
+  $('result-card').style.display = 'block';
+  if (!p) {
+    $('result-card').className = 'not-found';
+    $('res-name').textContent = 'Product not found';
+    $('res-code').textContent = code;
+    $('res-current').textContent = $('res-original').textContent = $('res-pct').textContent = '—';
+    $('res-current').className = 'tile-val';
+    $('tile-current').className = 'stock-tile';
+    $('alert-banner').style.display = 'none';
+    $('threshold-box').style.display = 'none';
+    toast('❌ Not found: ' + code, 'error');
+    return;
+  }
+  currentCode = code;
+  $('result-card').className = 'found';
+  $('res-name').textContent = p.name;
+  $('res-code').textContent = code;
+  const cl = stockCls(p.qty, p.original);
+  $('res-current').textContent = p.qty;
+  $('res-current').className = 'tile-val ' + cl;
+  $('tile-current').className = 'stock-tile ' + tileHL(p.qty, p.original);
+  $('res-original').textContent = p.original;
+  $('res-pct').textContent = Math.round(pct(p.qty,p.original)*100) + '%';
+  $('qty-input').value = 1;
+  $('qty-input').max = actionMode==='deduct' ? p.qty : 999999;
+  updateAlertBanner(code, p.qty, p.original);
+  showThresholds(code);
+  bumpScans(); renderStats();
+  activeStab('products'); renderScanList();
+}
+
+$('btn-lookup').addEventListener('click', () => lookup($('manual-input').value));
+$('manual-input').addEventListener('keydown', e => { if(e.key==='Enter') lookup($('manual-input').value); });
+
+// ─── Deduct / Restock action ─────────────────────────────────────
+$('btn-action').addEventListener('click', () => {
+  if (!currentCode) return;
+  const p = products[currentCode];
+  const qty = parseInt($('qty-input').value, 10);
+  if (!qty || qty < 1) { toast('⚠️ Enter a valid quantity', 'error'); return; }
+
+  if (actionMode === 'deduct') {
+    if (qty > p.qty) { toast(`⚠️ Only ${p.qty} available`, 'error'); return; }
+    p.qty -= qty; totalOut += qty;
+    history.push({ type:'deduct', code:currentCode, name:p.name, qty, after:p.qty, time:Date.now() });
+    LS.set('ss_products', products); LS.set('ss_history', history);
+    toast(`✅ −${qty} deducted. ${p.qty} remaining.`, 'success');
+  } else {
+    p.qty += qty;
+    if (p.qty > p.original) p.original = p.qty;
+    history.push({ type:'restock', code:currentCode, name:p.name, qty, after:p.qty, time:Date.now() });
+    LS.set('ss_products', products); LS.set('ss_history', history);
+    toast(`✅ +${qty} restocked. Now ${p.qty} in stock.`, 'success');
+  }
+
+  const cl = stockCls(p.qty, p.original);
+  $('res-current').textContent = p.qty;
+  $('res-current').className = 'tile-val ' + cl;
+  $('tile-current').className = 'stock-tile ' + tileHL(p.qty, p.original);
+  $('res-original').textContent = p.original;
+  $('res-pct').textContent = Math.round(pct(p.qty,p.original)*100) + '%';
+  $('qty-input').max = actionMode==='deduct' ? p.qty : 999999;
+  updateAlertBanner(currentCode, p.qty, p.original);
+  updateThresholdPreview(currentCode);
+  renderScanList(); renderHistory(); renderStats(); renderTable($('search-input').value, $('cat-filter').value);
+  renderAlertsPage();
+});
+
+// ─── Add/Edit Modal ───────────────────────────────────────────────
+function openAdd() {
+  editingCode = null;
+  $('modal-title-text').textContent = 'Add Product';
+  $('m-barcode').value = ''; $('m-barcode').disabled = false;
+  $('m-name').value = ''; $('m-qty').value = ''; $('m-cat').value = '';
+  $('modal-product').classList.add('open');
+  setTimeout(() => $('m-barcode').focus(), 80);
+}
+function openEdit(code) {
+  editingCode = code; const p = products[code];
+  $('modal-title-text').textContent = 'Edit Product';
+  $('m-barcode').value = code; $('m-barcode').disabled = true;
+  $('m-name').value = p.name; $('m-qty').value = p.qty; $('m-cat').value = p.category||'';
+  $('modal-product').classList.add('open');
+  setTimeout(() => $('m-name').focus(), 80);
+}
+const closeModal = () => $('modal-product').classList.remove('open');
+$('btn-new').addEventListener('click', openAdd);
+$('modal-close').addEventListener('click', closeModal);
+$('modal-cancel').addEventListener('click', closeModal);
+$('modal-product').addEventListener('click', e => { if(e.target===$('modal-product')) closeModal(); });
+
+$('modal-save').addEventListener('click', () => {
+  const code = $('m-barcode').value.trim();
+  const name = $('m-name').value.trim();
+  const qty  = parseInt($('m-qty').value,10);
+  const cat  = $('m-cat').value.trim();
+  if (!code||!name||!qty||qty<1) { toast('⚠️ Fill all required fields', 'error'); return; }
+  if (editingCode) {
+    const orig = products[editingCode].original;
+    products[editingCode] = { name, qty, original:qty>orig?qty:orig, category:cat };
+    toast(`✅ "${name}" updated`, 'success');
+  } else {
+    if (products[code]) { toast('⚠️ Barcode already exists', 'error'); return; }
+    products[code] = { name, qty, original:qty, category:cat };
+    toast(`✅ "${name}" added`, 'success');
+  }
+  LS.set('ss_products', products);
+  closeModal(); renderTable($('search-input').value, $('cat-filter').value); renderScanList(); renderStats(); renderAlertsPage();
+});
+
+// ─── Delete Modal ─────────────────────────────────────────────────
+function openDelete(code) {
+  deletingCode = code; $('delete-name').textContent = products[code].name;
+  $('modal-delete').classList.add('open');
+}
+$('delete-cancel').addEventListener('click', () => $('modal-delete').classList.remove('open'));
+$('modal-delete').addEventListener('click', e => { if(e.target===$('modal-delete')) $('modal-delete').classList.remove('open'); });
+$('delete-confirm').addEventListener('click', () => {
+  if (!deletingCode) return;
+  const name = products[deletingCode].name;
+  delete products[deletingCode];
+  if (currentCode===deletingCode) { currentCode=null; $('result-card').style.display='none'; $('threshold-box').style.display='none'; }
+  LS.set('ss_products', products);
+  $('modal-delete').classList.remove('open');
+  renderTable($('search-input').value, $('cat-filter').value); renderScanList(); renderStats(); renderAlertsPage();
+  toast(`🗑 "${name}" deleted`, 'success'); deletingCode=null;
+});
+
+// ─── Search + Category filter ─────────────────────────────────────
+$('search-input').addEventListener('input', e => renderTable(e.target.value, $('cat-filter').value));
+$('cat-filter').addEventListener('change', e => renderTable($('search-input').value, e.target.value));
+
+// ─── Nav ──────────────────────────────────────────────────────────
+function navTo(page) {
+  document.querySelectorAll('.nav-btn').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+  document.querySelector(`.nav-btn[data-page="${page}"]`).classList.add('active');
+  $('page-'+page).classList.add('active');
+  if (page==='products') renderTable($('search-input').value, $('cat-filter').value);
+  if (page==='alerts') renderAlertsPage();
+}
+document.querySelectorAll('.nav-btn').forEach(b => b.addEventListener('click', () => navTo(b.dataset.page)));
+
+// ─── Sidebar tabs ──────────────────────────────────────────────────
+function activeStab(name) {
+  document.querySelectorAll('.stab').forEach(t => t.classList.toggle('active', t.dataset.stab===name));
+  document.querySelectorAll('.stab-pane').forEach(p => p.classList.toggle('active', p.id==='stab-'+name));
+}
+document.querySelectorAll('.stab').forEach(t => t.addEventListener('click', () => activeStab(t.dataset.stab)));
+
+// ─── Export ────────────────────────────────────────────────────────
+$('btn-export').addEventListener('click', () => {
+  const data = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    products,
+    history,
+    thresholds
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const date = new Date().toISOString().slice(0,10);
+  a.href     = url;
+  a.download = `stockscan-backup-${date}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('✅ Data exported successfully', 'success');
+});
+
+// ─── Import ────────────────────────────────────────────────────────
+$('import-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (!data.products) throw new Error('Invalid file');
+      const count = Object.keys(data.products).length;
+      if (!confirm(`Import ${count} products from "${file.name}"?\n\nThis will REPLACE your current data.`)) {
+        e.target.value = ''; return;
+      }
+      products    = data.products    || {};
+      history     = data.history     || [];
+      thresholds  = data.thresholds  || {};
+      totalOut    = history.reduce((s,h) => s + (h.type!=='restock'?h.qty:0), 0);
+      LS.set('ss_products',   products);
+      LS.set('ss_history',    history);
+      LS.set('ss_thresholds', thresholds);
+      currentCode = null;
+      $('result-card').style.display = 'none';
+      $('threshold-box').style.display = 'none';
+      renderScanList(); renderHistory(); renderStats();
+      renderTable($('search-input').value, $('cat-filter').value);
+      renderAlertsPage();
+      toast(`✅ Imported ${count} products successfully`, 'success');
+    } catch {
+      toast('❌ Invalid file — could not import', 'error');
+    }
+    e.target.value = '';
+  };
+  reader.readAsText(file);
+});
+
+// ─── Service Worker ────────────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+// ─── Init ──────────────────────────────────────────────────────────
+renderScanList(); renderHistory(); renderStats(); renderTable(); renderAlertsPage();
+</script>
+</body>
+</html>
